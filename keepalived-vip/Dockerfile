@@ -42,5 +42,6 @@ RUN mkdir -p /etc/keepalived && \
 COPY kube-keepalived-vip /
 COPY keepalived.tmpl /
 COPY keepalived.conf /etc/keepalived
+COPY /ipvsadm-notify.sh /
 
 ENTRYPOINT ["/kube-keepalived-vip"]

@@ -13,6 +13,9 @@ vrrp_instance vips {
   nopreempt
   advert_int 1
 
+  notify_master "/ipvsadm-notify.sh master {{ $iface }}"
+  notify_backup "/ipvsadm-notify.sh backup {{ $iface }}"
+
   track_interface {
     {{ $iface }}
   }
