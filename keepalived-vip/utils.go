@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -121,60 +120,35 @@ func getPodDetails(kubeClient *unversioned.Client) (*podInfo, error) {
 	}, nil
 }
 
-// netInterfaces returns a slice containing the local network interfaces
-// excluding lo, docker0, flannel.1 and veth interfaces.
-func netInterfaces() []net.Interface {
-	validIfaces := []net.Interface{}
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return validIfaces
-	}
-
-	for _, iface := range ifaces {
-		if !vethRegex.MatchString(iface.Name) && stringSlice(invalidIfaces).pos(iface.Name) == -1 {
-			validIfaces = append(validIfaces, iface)
-		}
-	}
-
-	return validIfaces
-}
-
 // interfaceByIP returns the local network interface name that is using the
 // specified IP address. If no interface is found returns an empty string.
 func interfaceByIP(ip string) (string, string, int) {
-	for _, iface := range netInterfaces() {
-		ifaceIP, mask, err := ipByInterface(iface.Name)
-		if err == nil && ip == ifaceIP {
-			return iface.Name, ip, mask
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", "", 0
+	}
+
+	for _, iface := range ifaces {
+		if vethRegex.MatchString(iface.Name) || stringSlice(invalidIfaces).pos(iface.Name) != -1 {
+			continue
 		}
-	}
 
-	return "", "", 0
-}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
 
-func ipByInterface(name string) (string, int, error) {
-	iface, err := net.InterfaceByName(name)
-	if err != nil {
-		return "", 32, err
-	}
-
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return "", 32, err
-	}
-
-	for _, a := range addrs {
-		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				ip := ipnet.IP.String()
-				ones, _ := ipnet.Mask.Size()
-				mask := ones
-				return ip, mask, nil
+		for _, a := range addrs {
+			if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil && ip == ipnet.IP.String() {
+					mask, _ := ipnet.Mask.Size()
+					return iface.Name, ip, mask
+				}
 			}
 		}
 	}
 
-	return "", 32, errors.New("Found no IPv4 addresses.")
+	return "", "", 0
 }
 
 type stringSlice []string
